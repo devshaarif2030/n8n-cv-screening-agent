@@ -105,6 +105,7 @@ Set `send_ack` to `false` in `Job Profile` to turn off candidate emails. Address
 
 ## Limits
 
+- The demo run used the form. The email (IMAP) intake is included but was not part of the demo run, so test it with your inbox first.
 - PDF only. Scanned PDFs with no text layer are logged as `needs_review` instead of being scored.
 - AI scores are a first pass to sort the pile. A person reads the CVs and makes the decision. Do not auto-reject on the score alone.
 - The model can misread dates or miss a skill written in an unusual way. Each must-have comes with an evidence quote so you can check it fast.
