@@ -1,0 +1,606 @@
+{
+  "name": "CV Screener - Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Apply: Senior Full-Stack Developer",
+        "formDescription": "Harbourline Freight (demo). Upload your CV as a PDF.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Full name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Location",
+              "placeholder": "City, Country",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "CV",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf",
+              "multipleFiles": false,
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Note to the hiring team",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "Thanks, we got your CV. You will hear from us within 5 working days."
+            }
+          }
+        }
+      },
+      "id": "88eda90a-21be-4d53-a8f7-66885dcfb5c9",
+      "name": "Apply Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "c3085127-0b69-43c5-b00e-ec01eb012615"
+    },
+    {
+      "parameters": {
+        "downloadAttachments": true,
+        "postProcessAction": "nothing",
+        "options": {
+          "customEmailConfig": "[\"ALL\", [\"SUBJECT\", \"Application\"], [\"SINCE\", \"26-Nov-2026\"]]"
+        }
+      },
+      "id": "de417597-c21f-4351-b439-5e064a85fb3a",
+      "name": "Email Applications (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        0,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $input.item.json;\nconst bin = $input.item.binary || {};\nconst key = Object.keys(bin)[0];\nif (!key) throw new Error('No CV file uploaded');\nconst pick = (...k) => { for (const x of k) if (j[x] !== undefined && j[x] !== null && j[x] !== '') return String(j[x]).trim(); return ''; };\nreturn { json: {\n  source: 'form',\n  name: pick('Full name', 'Name', 'name'),\n  email: pick('Email', 'email').toLowerCase(),\n  location: pick('Location', 'location'),\n  note: pick('Note to the hiring team', 'Note', 'note'),\n  cv_filename: bin[key].fileName || 'cv.pdf'\n}, binary: { cv: bin[key] } };"
+      },
+      "id": "688a870e-1302-405e-a4ac-73aed8ebf1bd",
+      "name": "From Form",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One item per PDF attachment. Emails without a PDF are skipped.\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  const from = String(j.from || '');\n  const m = from.match(/^\\s*\"?([^\"<]*)\"?\\s*<([^>]+)>/);\n  const name = m ? m[1].trim() : '';\n  const email = (m ? m[2] : from).trim().toLowerCase();\n  for (const [key, b] of Object.entries(item.binary || {})) {\n    const isPdf = (b.mimeType || '').includes('pdf') || /\\.pdf$/i.test(b.fileName || '');\n    if (!isPdf) continue;\n    out.push({ json: {\n      source: 'email', name, email, location: '',\n      note: String(j.subject || '') + ' ' + String(j.textPlain || j.text || '').slice(0, 500),\n      cv_filename: b.fileName || 'cv.pdf'\n    }, binary: { cv: b } });\n  }\n}\nreturn out;"
+      },
+      "id": "d6ce527d-afd5-48a9-94fd-a927a1e62726",
+      "name": "From Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "cv",
+        "options": {}
+      },
+      "id": "e3dbdc62-9612-4b1d-9a94-7198968d0cd4",
+      "name": "Extract CV Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const src = $('From Form').isExecuted ? $('From Form').item.json : $('From Email').item.json;\nconst raw = typeof $json.text === 'string' ? $json.text : '';\nconst cv_text = raw.replace(/\\u0000/g, '').replace(/[ \\t]+/g, ' ').replace(/\\n{3,}/g, '\\n\\n').trim().slice(0, 12000);\nreturn { json: {\n  candidate_id: 'C-' + Date.now() + '-' + Math.floor(Math.random() * 1000),\n  received_at: new Date().toISOString(),\n  ...src,\n  cv_readable: cv_text.length >= 200,\n  cv_text: cv_text.length >= 200 ? cv_text : 'CV TEXT NOT READABLE (scanned or empty PDF)'\n}};"
+      },
+      "id": "c3b923e4-fdd6-4d58-bb6b-d3966076494e",
+      "name": "Prepare Candidate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cff55d52-5b56-43e0-ad3f-ed7299523faa",
+              "name": "job_id",
+              "value": "HLF-FS-01",
+              "type": "string"
+            },
+            {
+              "id": "47859a9e-949b-4230-a698-157ef57ca551",
+              "name": "job_title",
+              "value": "Senior Full-Stack Developer (React + Node.js)",
+              "type": "string"
+            },
+            {
+              "id": "41f30938-1cfa-4256-8f50-9a826db8bd0b",
+              "name": "company",
+              "value": "Harbourline Freight",
+              "type": "string"
+            },
+            {
+              "id": "22aa3ed7-fb90-4506-838a-a37f64e2844a",
+              "name": "job_summary",
+              "value": "Harbourline builds a shipment tracking platform for small freight forwarders. You will own features end to end: React front end, Node.js API, PostgreSQL.",
+              "type": "string"
+            },
+            {
+              "id": "f9cfb66f-719c-4d9d-9c3c-473e6b4c068b",
+              "name": "must_haves",
+              "value": "4+ years of professional full-stack development\nReact in production\nNode.js in production\nPostgreSQL or another SQL database\nBased in UTC-1 to UTC+3, or able to work UK hours",
+              "type": "string"
+            },
+            {
+              "id": "7dad51e8-c316-4b17-ad2b-5bb5f5199e47",
+              "name": "nice_to_haves",
+              "value": "TypeScript\nAWS\nDocker and CI/CD\nLogistics or supply chain domain\nMentoring junior developers",
+              "type": "string"
+            },
+            {
+              "id": "c6a491ce-edcb-42a7-b27a-b8d3d66d6e8f",
+              "name": "min_years",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "id": "e2550793-3c8a-47d4-961f-7b9a6c56f68d",
+              "name": "location_rule",
+              "value": "Remote. Must be in UTC-1 to UTC+3 or able to work UK hours (at least 4 hours overlap with London).",
+              "type": "string"
+            },
+            {
+              "id": "0df01f6f-d3e8-4a1b-b682-bf7ebc696c46",
+              "name": "send_ack",
+              "value": "true",
+              "type": "string"
+            },
+            {
+              "id": "3eebf5f3-0e1b-4f7a-84d6-66fee96a2d95",
+              "name": "sender_name",
+              "value": "Hiring Team",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f339b8de-b4df-4513-acb8-79125bb65dff",
+      "name": "Job Profile",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=JOB\nTitle: {{ $json.job_title }}\nCompany: {{ $json.company }}\nAbout the role: {{ $json.job_summary }}\nMinimum years: {{ $json.min_years }}\nLocation rule: {{ $json.location_rule }}\n\nMUST HAVE (evaluate every line, in this order)\n{{ $json.must_haves }}\n\nNICE TO HAVE\n{{ $json.nice_to_haves }}\n\nCANDIDATE (from the application)\nName: {{ $json.name }}\nEmail: {{ $json.email }}\nStated location: {{ $json.location }}\nNote: {{ $json.note }}\n\nCV TEXT\n{{ $json.cv_text }}\n\nSCORING RULES\nskills_score (0-100): coverage of the must-have and nice-to-have skills with evidence of real use. All must-have skills with production evidence = 70+. Each nice-to-have adds a little.\nexperience_score (0-100): relevant years and seniority vs the minimum. Exactly the minimum = 60. 2+ years above with ownership or leadership = 85+. Below the minimum = under 50.\nlocation_score (0-100): inside the allowed time zones = 100. Outside but the CV or note says they will work UK hours = 60. Outside with no signal = 20. Unknown = 50.\nmust_haves: one entry per must-have line, met true or false, with a short evidence quote or \"not mentioned\".\nyears_experience: total professional years in relevant roles, from the dates in the CV. Use {{ $now.year }} for \"present\".\nred_flags: only real ones (unexplained gaps over 6 months, many jobs under 1 year, dates that do not add up). Empty array if none.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a recruitment screening assistant for a hiring team.\nYou compare one CV against one job description and score it.\nJudge only on what the CV says. Do not invent experience, skills or dates.\nA skill counts as production experience only if the CV shows it used in a job or project, not just listed.\nDo not use age, gender, nationality, religion, ethnicity, photo, name or university prestige in any score.\nLocation only matters through the job's location rule (time zone and working hours).\nIf the CV text is missing or unreadable, say so and set confidence to low.\nWrite short, plain, factual notes. No hype, no em dashes.\nReturn only JSON that matches the schema."
+            }
+          ]
+        }
+      },
+      "id": "4f4a66ec-1df3-4a6c-a772-6e5bbd987278",
+      "name": "Screen CV",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        1100,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-flash-lite-latest",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "877f1350-61d3-4945-9103-ba4eb8b37628",
+      "name": "Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"candidate_name\": { \"type\": \"string\" },\n    \"email_in_cv\": { \"type\": \"string\" },\n    \"current_title\": { \"type\": \"string\" },\n    \"location\": { \"type\": \"string\", \"description\": \"City and country from the CV\" },\n    \"years_experience\": { \"type\": \"number\" },\n    \"must_haves\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"requirement\": { \"type\": \"string\" },\n          \"met\": { \"type\": \"boolean\" },\n          \"evidence\": { \"type\": \"string\" }\n        },\n        \"required\": [\"requirement\", \"met\", \"evidence\"]\n      }\n    },\n    \"skills_matched\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"skills_missing\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"nice_to_haves_matched\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"skills_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n    \"experience_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n    \"location_score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n    \"summary\": { \"type\": \"string\", \"description\": \"2 sentences for the recruiter\" },\n    \"strengths\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"maxItems\": 3 },\n    \"concerns\": { \"type\": \"array\", \"items\": { \"type\": \"string\" }, \"maxItems\": 3 },\n    \"red_flags\": { \"type\": \"array\", \"items\": { \"type\": \"string\" } },\n    \"confidence\": { \"type\": \"string\", \"enum\": [\"low\", \"medium\", \"high\"] }\n  },\n  \"required\": [\"candidate_name\", \"email_in_cv\", \"current_title\", \"location\", \"years_experience\", \"must_haves\",\n    \"skills_matched\", \"skills_missing\", \"nice_to_haves_matched\", \"skills_score\", \"experience_score\", \"location_score\",\n    \"summary\", \"strengths\", \"concerns\", \"red_flags\", \"confidence\"]\n}\n"
+      },
+      "id": "82651342-3c94-4286-809b-8b6a77a66f12",
+      "name": "Screening Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1240,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ai = $json.output || {};\nconst c = $('Job Profile').item.json;\nconst n = v => Math.max(0, Math.min(100, Number(v) || 0));\nconst arr = v => Array.isArray(v) ? v : [];\nconst must = arr(ai.must_haves);\nconst missing = must.filter(m => m && m.met === false);\nconst met = must.filter(m => m && m.met === true);\nconst flags = arr(ai.red_flags);\n\n// Final score is code, not AI. Same sub scores in, same score out.\nlet s = Math.round(n(ai.skills_score) * 0.45 + n(ai.experience_score) * 0.35 + n(ai.location_score) * 0.20);\ns -= 15 * missing.length;                                   // each missed must-have\nif (Number(ai.years_experience) < Number(c.min_years)) s -= 10;  // below minimum years\nif (flags.length >= 2) s -= 10;                              // 2+ red flags\ns = Math.max(0, Math.min(100, s));\n\nconst tier = (s >= 75 && missing.length === 0) ? 'strong' : s >= 55 ? 'possible' : 'reject';\nconst status = (!c.cv_readable || ai.confidence === 'low') ? 'needs_review' : 'screened';\n\nreturn { json: { ...c, ...ai,\n  name: c.name || ai.candidate_name || '',\n  email: c.email || ai.email_in_cv || '',\n  location: c.location || ai.location || '',\n  skills_score: n(ai.skills_score), experience_score: n(ai.experience_score), location_score: n(ai.location_score),\n  final_score: s, tier, status,\n  must_haves_met: met.length + '/' + must.length,\n  must_haves_missing: missing.map(m => m.requirement).join(' | '),\n  skills_matched: arr(ai.skills_matched).join(', '),\n  skills_missing: arr(ai.skills_missing).join(', '),\n  nice_to_haves_matched: arr(ai.nice_to_haves_matched).join(', '),\n  strengths: arr(ai.strengths).join(' | '),\n  concerns: arr(ai.concerns).join(' | '),\n  red_flags: flags.join(' | ')\n}};"
+      },
+      "id": "5c40dbe4-e2a6-4363-b6d1-68d14af16965",
+      "name": "Calculate Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r = $json;\nconst cols = [\"candidate_id\", \"received_at\", \"source\", \"job_id\", \"job_title\", \"name\", \"email\", \"location\", \"cv_filename\", \"current_title\", \"years_experience\", \"skills_matched\", \"skills_missing\", \"nice_to_haves_matched\", \"must_haves_met\", \"must_haves_missing\", \"skills_score\", \"experience_score\", \"location_score\", \"final_score\", \"tier\", \"summary\", \"strengths\", \"concerns\", \"red_flags\", \"confidence\", \"status\", \"ack_sent_at\", \"shortlisted_at\", \"notes\"];\nconst row = {};\nfor (const c of cols) row[c] = r[c] !== undefined ? r[c] : '';\nrow.ack_sent_at = '';\nrow.shortlisted_at = '';\nreturn { json: row };"
+      },
+      "id": "87654ff2-e4d5-4af8-acf9-aed54bf0859c",
+      "name": "Prepare Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Candidates",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        }
+      },
+      "id": "e8d3ae70-cb98-4665-af93-8cfd3ed30c3e",
+      "name": "Log to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fb575b55-575e-4629-9f93-075177d3bdb4",
+              "leftValue": "={{ $('Calculate Score').item.json.send_ack === 'true' && /@/.test($('Calculate Score').item.json.email) && !/@example\\.(com|org|net)$/i.test($('Calculate Score').item.json.email) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "5426cebf-8fef-4480-ba1a-cf53aca3ec8d",
+      "name": "Send Ack?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "Your Name <you@yourdomain.com>",
+        "toEmail": "={{ $('Calculate Score').item.json.email }}",
+        "subject": "=We got your application: {{ $('Calculate Score').item.json.job_title }}",
+        "emailFormat": "text",
+        "text": "=Hi {{ $('Calculate Score').item.json.name.split(' ')[0] }},\n\nThanks for applying for the {{ $('Calculate Score').item.json.job_title }} role at {{ $('Calculate Score').item.json.company }}. We have your CV and our team is reviewing it.\n\nIf you are shortlisted we will email you within 5 working days to set up a short call.\n\n{{ $('Calculate Score').item.json.sender_name }}\n{{ $('Calculate Score').item.json.company }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6748309f-afd3-4e6b-bc8f-b0a2d9aff87d",
+      "name": "Send Acknowledgement",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2300,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { candidate_id: $('Calculate Score').item.json.candidate_id, ack_sent_at: new Date().toISOString() } };"
+      },
+      "id": "e80b2a85-ab31-4e90-a669-e0d13bde8aa4",
+      "name": "Build Ack Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Candidates",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "candidate_id"
+          ],
+          "schema": []
+        }
+      },
+      "id": "ca22eba4-e503-4ef0-acd9-85e9cb875a30",
+      "name": "Mark Ack Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2740,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Apply Form": {
+      "main": [
+        [
+          {
+            "node": "From Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Applications (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "From Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From Form": {
+      "main": [
+        [
+          {
+            "node": "Extract CV Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From Email": {
+      "main": [
+        [
+          {
+            "node": "Extract CV Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract CV Text": {
+      "main": [
+        [
+          {
+            "node": "Prepare Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Candidate": {
+      "main": [
+        [
+          {
+            "node": "Job Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Profile": {
+      "main": [
+        [
+          {
+            "node": "Screen CV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Screen CV",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screening Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Screen CV",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screen CV": {
+      "main": [
+        [
+          {
+            "node": "Calculate Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Score": {
+      "main": [
+        [
+          {
+            "node": "Prepare Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Row": {
+      "main": [
+        [
+          {
+            "node": "Log to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Send Ack?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Ack?": {
+      "main": [
+        [
+          {
+            "node": "Send Acknowledgement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Acknowledgement": {
+      "main": [
+        [
+          {
+            "node": "Build Ack Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Ack Update": {
+      "main": [
+        [
+          {
+            "node": "Mark Ack Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

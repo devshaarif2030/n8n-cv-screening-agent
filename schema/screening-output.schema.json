@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "candidate_name": { "type": "string" },
+    "email_in_cv": { "type": "string" },
+    "current_title": { "type": "string" },
+    "location": { "type": "string", "description": "City and country from the CV" },
+    "years_experience": { "type": "number" },
+    "must_haves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "requirement": { "type": "string" },
+          "met": { "type": "boolean" },
+          "evidence": { "type": "string" }
+        },
+        "required": ["requirement", "met", "evidence"]
+      }
+    },
+    "skills_matched": { "type": "array", "items": { "type": "string" } },
+    "skills_missing": { "type": "array", "items": { "type": "string" } },
+    "nice_to_haves_matched": { "type": "array", "items": { "type": "string" } },
+    "skills_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "experience_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "location_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "summary": { "type": "string", "description": "2 sentences for the recruiter" },
+    "strengths": { "type": "array", "items": { "type": "string" }, "maxItems": 3 },
+    "concerns": { "type": "array", "items": { "type": "string" }, "maxItems": 3 },
+    "red_flags": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "string", "enum": ["low", "medium", "high"] }
+  },
+  "required": ["candidate_name", "email_in_cv", "current_title", "location", "years_experience", "must_haves",
+    "skills_matched", "skills_missing", "nice_to_haves_matched", "skills_score", "experience_score", "location_score",
+    "summary", "strengths", "concerns", "red_flags", "confidence"]
+}

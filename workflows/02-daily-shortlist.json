@@ -1,0 +1,256 @@
+{
+  "name": "CV Screener - Daily Shortlist",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "8a488f43-0357-4d28-9af0-17d750b78618",
+      "name": "Every Day 6 PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "fe65520c-fc53-4685-b87f-fbb977d99529",
+      "name": "Run Now (demo)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "acf86814-3d9c-494d-87ef-7952f660d341",
+              "name": "job_id",
+              "value": "HLF-FS-01",
+              "type": "string"
+            },
+            {
+              "id": "68cd6916-5fdb-4a42-b3c5-7148b0b312d8",
+              "name": "shortlist_size",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "id": "92126e3c-cd6e-432f-bb47-4687158d1e67",
+              "name": "recruiter_email",
+              "value": "you@yourdomain.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dd65095f-307c-4def-8b38-fd9f75007cb1",
+      "name": "Shortlist Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Candidates",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "aba4e190-b14e-4746-b179-09361bf331d0",
+      "name": "Get Candidates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Shortlist Settings').first().json;\nconst size = Number(cfg.shortlist_size) || 5;\nconst rows = $input.all().map(i => i.json)\n  .filter(r => r.job_id === cfg.job_id && ['screened', 'shortlisted'].includes(r.status) && r.tier !== 'reject')\n  .sort((a, b) => Number(b.final_score) - Number(a.final_score))\n  .slice(0, size);\nif (!rows.length) return [];\nconst esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\nconst tr = rows.map((r, i) => `<tr>\n<td style=\"padding:8px;border-bottom:1px solid #eee\"><b>${i + 1}</b></td>\n<td style=\"padding:8px;border-bottom:1px solid #eee\"><b>${esc(r.name)}</b>${r.status === 'shortlisted' ? '' : ' <span style=\"color:#0a7d3b\">NEW</span>'}<br><span style=\"color:#666\">${esc(r.current_title)} | ${esc(r.location)} | ${esc(r.years_experience)} yrs</span><br><span style=\"color:#666\">${esc(r.email)}</span></td>\n<td style=\"padding:8px;border-bottom:1px solid #eee;font-size:20px\"><b>${esc(r.final_score)}</b></td>\n<td style=\"padding:8px;border-bottom:1px solid #eee;color:#333\">Skills ${esc(r.skills_score)} / Exp ${esc(r.experience_score)} / Loc ${esc(r.location_score)}<br>Must-haves ${esc(r.must_haves_met)}</td>\n<td style=\"padding:8px;border-bottom:1px solid #eee\">${esc(r.summary)}<br><span style=\"color:#b45309\">${esc(r.concerns)}</span></td></tr>`).join('');\nconst html = `<div style=\"font-family:Arial,sans-serif;font-size:14px\">\n<p>Top ${rows.length} candidates for <b>${esc(rows[0].job_title)}</b> (${esc(cfg.job_id)}), ranked by final score.</p>\n<table style=\"border-collapse:collapse;width:100%\"><tr style=\"text-align:left;background:#f5f5f5\"><th style=\"padding:8px\">#</th><th style=\"padding:8px\">Candidate</th><th style=\"padding:8px\">Score</th><th style=\"padding:8px\">Breakdown</th><th style=\"padding:8px\">Summary / concerns</th></tr>${tr}</table>\n<p style=\"color:#666\">Full data in the Candidates sheet. Score = skills 45% + experience 35% + location 20%, minus 15 per missed must-have. AI scores are a first pass. A person makes the call.</p></div>`;\nreturn [{ json: { html, count: rows.length, job_title: rows[0].job_title, ids: rows.map(r => r.candidate_id) } }];"
+      },
+      "id": "2b856178-8bea-4562-a46e-55add8f48f24",
+      "name": "Pick Top 5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "Your Name <you@yourdomain.com>",
+        "toEmail": "={{ $('Shortlist Settings').first().json.recruiter_email }}",
+        "subject": "=Shortlist: top {{ $json.count }} for {{ $json.job_title }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c0269c00-75ef-458d-aa65-6079629b4c42",
+      "name": "Email Shortlist",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toISOString();\nreturn $('Pick Top 5').first().json.ids.map(id => ({ json: { candidate_id: id, status: 'shortlisted', shortlisted_at: now } }));"
+      },
+      "id": "424b74be-5d76-48a5-a368-da70b79703f9",
+      "name": "Build Shortlist Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Candidates",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "candidate_id"
+          ],
+          "schema": []
+        }
+      },
+      "id": "4d5a8fe6-dc21-4b78-bb91-bae7c0283f77",
+      "name": "Mark Shortlisted",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every Day 6 PM": {
+      "main": [
+        [
+          {
+            "node": "Shortlist Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Now (demo)": {
+      "main": [
+        [
+          {
+            "node": "Shortlist Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shortlist Settings": {
+      "main": [
+        [
+          {
+            "node": "Get Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Candidates": {
+      "main": [
+        [
+          {
+            "node": "Pick Top 5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Top 5": {
+      "main": [
+        [
+          {
+            "node": "Email Shortlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Shortlist": {
+      "main": [
+        [
+          {
+            "node": "Build Shortlist Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Shortlist Update": {
+      "main": [
+        [
+          {
+            "node": "Mark Shortlisted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

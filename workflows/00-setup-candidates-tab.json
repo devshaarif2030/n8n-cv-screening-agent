@@ -1,0 +1,54 @@
+{
+  "name": "CV Screener - Setup (run once)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c1fffbc6-46db-4642-9539-cbd5d88537fb",
+      "name": "Run Setup",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "create",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "title": "Candidates",
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "d3463aeb-ad26-4bd6-b963-680bbcb7de55",
+      "name": "Create Candidates Tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Run Setup": {
+      "main": [
+        [
+          {
+            "node": "Create Candidates Tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
