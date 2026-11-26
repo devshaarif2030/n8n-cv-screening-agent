@@ -40,6 +40,8 @@ What the scoring caught:
 
 Acknowledgement emails in the demo went to my own inbox. All other demo addresses use `example.com`, which the workflow never emails.
 
+Full case study: [devshaarif.com/case-studies/n8n-cv-screening-agent](https://devshaarif.com/case-studies/n8n-cv-screening-agent/)
+
 ## Workflows
 
 | File | What it does |
